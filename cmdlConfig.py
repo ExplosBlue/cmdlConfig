@@ -10,7 +10,6 @@ class modelObj:
         self.name = name
         self.materials = materials
 
-
 def createModelList(xmlRoot):
     modelsList = []
 
@@ -42,8 +41,35 @@ def generateConfig():
             pickle.dump(createModelList(xmlRoot), outfile, pickle.HIGHEST_PROTOCOL)
 
 
-def loadConfig(configPath, outPath):
+def setMaterialsFromConfig(xmlRoot, modelsList):
+    modelCount = 0
+    materialCount = 0
 
+    for models in xmlRoot.iter('Models'):
+
+        for model in models:
+
+            for mdl in modelsList:
+
+                if model.attrib.get('Name') == mdl.name:
+                    modelCount += 1
+
+                    for materials in model.iter('Materials'):
+
+                        for material in materials:
+
+                            for mat in mdl.materials:
+
+                                if material.attrib.get('Name') == mat.attrib.get('Name'):
+                                    materialCount += 1
+
+                                    materials.remove(material)
+                                    materials.append(mat)
+
+    print('Updated {matCount} materials in {mdlCount} models'.format(matCount=materialCount, mdlCount=modelCount))
+
+
+def applyConfig(configPath, outPath):
     with open(configPath, 'rb') as infile:
         modelsList = pickle.load(infile)
         print(modelsList)
@@ -51,35 +77,9 @@ def loadConfig(configPath, outPath):
     xmlTree = ElementTree.parse(args['infile'])
     xmlRoot = xmlTree.getroot()
 
-    modelCount = 0
-    materialCount = 0
-
-    for models in xmlRoot.iter('Models'):
-        for model in models:
-            
-            for mdl in modelsList:
-                if model.attrib.get('Name') == mdl.name:
-                    modelCount += 1
-                    for material in model.iter('MaterialCtr'):
-
-                        for mat in mdl.materials:
-                            if material.attrib.get('Name') == mat.attrib.get('Name'):
-                                materialCount += 1
-
-                                for child in material:
-                                    print('material: {e}'.format(e=child))
-
-                                for child in mat:    
-                                    print('mat: {e}'.format(e=child))
-                                
-                                print('--------------------------------')
-                                material = mat
-
+    setMaterialsFromConfig(xmlRoot, modelsList)
 
     xmlTree.write(outPath)
-
-    print('Updated {matCount} materials in {mdlCount} models'.format(matCount=materialCount, mdlCount=modelCount))
-
 
 
 if __name__ == "__main__":
@@ -99,7 +99,7 @@ if __name__ == "__main__":
         else:
             outPath = args['outfile']
 
-        loadConfig(args['apply'][0], outPath)
+        applyConfig(args['apply'][0], outPath)
     else:
         generateConfig()
 
