@@ -1,83 +1,73 @@
-from ast import arg
 from os import path
-import string
 import xml.etree.ElementTree as ElementTree
 import argparse
 import pickle
 
-class modelObj:
-    def __init__(self, name, materials):
-        self.name = name
-        self.materials = materials
+class objProperties:
+    def __init__(self):
+        self.materials = []
 
-def createModelList(xmlRoot):
-    modelsList = []
+    def addMaterial(self, material):
+        self.materials.append(material)
 
-    for models in xmlRoot.iter('Models'):
-        for model in models:
+def createPropertiesList(xmlRoot):
+    propertiesList = objProperties()
 
-            materialsList = []
+    for material in xmlRoot.iter('MaterialCtr'):
+            propertiesList.addMaterial(material)
 
-            for material in model.iter('MaterialCtr'):
-                materialsList.append(material)
-
-            modelsList.append(modelObj(model.attrib.get('Name'), materialsList))
-
-    return modelsList
+    return propertiesList
 
 
 def generateConfig():
-        xmlTree = ElementTree.parse(args['infile'])
-        xmlRoot = xmlTree.getroot()
+    xmlTree = ElementTree.parse(args['infile'])
+    xmlRoot = xmlTree.getroot()
 
-        outPath = ''
+    propertyList = createPropertiesList(xmlRoot)
 
-        if args['outfile'] is None:
-            outPath = path.splitext(args['infile'])[0] + '.conf'
-        else:
-            outPath = args['outfile']
+    outPath = ''
 
-        with open(outPath, 'wb') as outfile:
-            pickle.dump(createModelList(xmlRoot), outfile, pickle.HIGHEST_PROTOCOL)
+    if args['outfile'] is None:
+        outPath = path.splitext(args['infile'])[0] + '.conf'
+    else:
+        outPath = args['outfile']
+
+    with open(outPath, 'wb') as outfile:
+        pickle.dump(propertyList, outfile, pickle.HIGHEST_PROTOCOL)
+    
+    print('Generated config with {matCount} materials'.format(matCount=len(propertyList.materials)))
 
 
-def setMaterialsFromConfig(xmlRoot, modelsList):
-    modelCount = 0
+
+def setMaterialsFromConfig(xmlRoot, propertiesList):
     materialCount = 0
 
     for models in xmlRoot.iter('Models'):
-
         for model in models:
+            for materials in model.iter('Materials'):
 
-            for mdl in modelsList:
+                for material in materials:
 
-                if model.attrib.get('Name') == mdl.name:
-                    modelCount += 1
+                    for mat in propertiesList.materials:
 
-                    for materials in model.iter('Materials'):
+                        if material.attrib.get('Name') == mat.attrib.get('Name'):
+                            materialCount += 1
 
-                        for material in materials:
+                            materials.remove(material)
+                            materials.append(mat)
 
-                            for mat in mdl.materials:
-
-                                if material.attrib.get('Name') == mat.attrib.get('Name'):
-                                    materialCount += 1
-
-                                    materials.remove(material)
-                                    materials.append(mat)
-
-    print('Updated {matCount} materials in {mdlCount} models'.format(matCount=materialCount, mdlCount=modelCount))
+    print('Updated {matCount} materials'.format(matCount=materialCount))
 
 
 def applyConfig(configPath, outPath):
     with open(configPath, 'rb') as infile:
-        modelsList = pickle.load(infile)
-        print(modelsList)
+        propertiesList = pickle.load(infile)
+        print(propertiesList)
 
     xmlTree = ElementTree.parse(args['infile'])
     xmlRoot = xmlTree.getroot()
 
-    setMaterialsFromConfig(xmlRoot, modelsList)
+    setMaterialsFromConfig(xmlRoot, propertiesList)
 
     xmlTree.write(outPath)
 
