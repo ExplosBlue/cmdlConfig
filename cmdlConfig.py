@@ -6,9 +6,13 @@ import pickle
 class objProperties:
     def __init__(self):
         self.materials = []
+        self.meshes = []
 
     def addMaterial(self, material: ElementTree.Element):
         self.materials.append(material)
+
+    def addMesh(self, mesh: ElementTree.Element):
+        self.meshes.append(mesh)
 
 
 def generateConfig():
@@ -21,7 +25,10 @@ def generateConfig():
     for material in cmdlRoot.iter('MaterialCtr'):
         propertyList.addMaterial(material)
 
-    # TODO: Add User Data to config
+    # Add Meshes to config
+    if args['meshes']:
+        for mesh in cmdlRoot.iter('Mesh'):
+            propertyList.addMesh(mesh)
 
     # Output the config file
     outPath = ''
@@ -34,7 +41,9 @@ def generateConfig():
     with open(outPath, 'wb') as outfile:
         pickle.dump(propertyList, outfile, pickle.HIGHEST_PROTOCOL)
     
-    print('Generated config with {matCount} materials'.format(matCount=len(propertyList.materials)))
+    print('Generated config with:')
+    print(' - {matCount} materials'.format(matCount=len(propertyList.materials)))
+    print(' - {meshCount} meshes'.format(meshCount=len(propertyList.meshes)))
 
 
 def setMaterialsFromConfig(cmdlRoot: ElementTree.Element, propertiesList: objProperties):
@@ -81,6 +90,36 @@ def setMaterialsFromConfig(cmdlRoot: ElementTree.Element, propertiesList: objPro
     print('Updated {c} of {t} Materials'.format(c=matChangedCount, t=totalMaterials))
 
 
+def setMeshesFromConfig(cmdlRoot: ElementTree.Element, propertiesList: objProperties):
+
+    # Get a list of all meshes in the CMDL
+    meshIter = cmdlRoot.iter('Mesh')
+    meshList = list(meshIter)
+
+    meshChangedCount = 0
+    
+    totalMeshes = len(meshList)
+    print(len(meshList))
+    print(totalMeshes)
+
+    # Loop over each mesh in the mesh list
+    for mesh in meshList:
+        print(mesh.attrib.get('MeshNodeName'))
+        for pMesh in propertiesList.meshes:
+
+            if mesh.attrib.get('MeshNodeName') == pMesh.attrib.get('MeshNodeName'):
+                mesh.set('RenderPriority', pMesh.attrib.get('RenderPriority'))
+
+                for userData in pMesh.iter('UserData'):
+                    mesh.append(userData)
+
+                meshChangedCount += 1
+                
+                break
+
+    print('Updated {c} of {t} Meshes'.format(c=meshChangedCount, t=totalMeshes))
+
+
 def applyConfig(configPath: str, outPath: str):
     with open(configPath, 'rb') as infile:
         propertiesList = pickle.load(infile)
@@ -90,6 +129,9 @@ def applyConfig(configPath: str, outPath: str):
 
     setMaterialsFromConfig(cmdlRoot, propertiesList)
 
+    if args['meshes']:
+        setMeshesFromConfig(cmdlRoot, propertiesList)
+
     cmdlTree.write(outPath)
 
 
@@ -98,6 +140,7 @@ if __name__ == "__main__":
     parser.add_argument('infile', metavar='In', help='Input file')
     parser.add_argument('outfile', metavar='Out', nargs='?', help='Output file')
     parser.add_argument('--apply', metavar='Config', dest='apply', nargs=1, help='Applies a config file to a CMDL if enabled (default: stores CMDL config to file)')
+    parser.add_argument('--m', dest='meshes', action='store_true', help='Stores/loads mesh data if enabled')
 
     args = vars(parser.parse_args())
 
